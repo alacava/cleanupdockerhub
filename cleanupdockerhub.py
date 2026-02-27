@@ -10,6 +10,7 @@ A tag is only deleted when BOTH conditions are met:
 
 import os
 import sys
+import time
 import logging
 from datetime import datetime, timezone
 from typing import List, Tuple
@@ -59,14 +60,34 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def get_token() -> str:
-    """Authenticate with Docker Hub and return a JWT token."""
-    resp = requests.post(
-        f"{DOCKERHUB_API}/users/login",
-        json={"username": DOCKERHUB_USERNAME, "password": DOCKERHUB_TOKEN},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()["token"]
+    """Authenticate with Docker Hub and return a JWT token.
+
+    Retries up to 3 times with exponential backoff on 5xx / network errors.
+    4xx errors (bad credentials, etc.) are not retried.
+    """
+    last_exc: Exception = RuntimeError("No attempts made")
+    for attempt in range(1, 4):
+        try:
+            resp = requests.post(
+                f"{DOCKERHUB_API}/users/login",
+                json={"username": DOCKERHUB_USERNAME, "password": DOCKERHUB_TOKEN},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            return resp.json()["token"]
+        except requests.exceptions.HTTPError as exc:
+            # 4xx = credentials / client error — no point retrying
+            if exc.response is not None and exc.response.status_code < 500:
+                raise
+            last_exc = exc
+        except requests.exceptions.RequestException as exc:
+            last_exc = exc
+
+        wait = 2 ** attempt  # 2 s, 4 s, 8 s
+        log.warning(f"Docker Hub login attempt {attempt}/3 failed: {last_exc}. Retrying in {wait}s...")
+        time.sleep(wait)
+
+    raise last_exc
 
 
 def paginate(url: str, token: str) -> List[dict]:
