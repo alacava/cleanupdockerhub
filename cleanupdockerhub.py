@@ -243,12 +243,22 @@ def run_cleanup() -> None:
 # Entry point — one-shot or scheduled
 # ---------------------------------------------------------------------------
 
+def safe_run_cleanup() -> None:
+    """Run cleanup and catch all exceptions so the scheduler is never killed."""
+    try:
+        run_cleanup()
+    except Exception as exc:
+        log.error(f"Cleanup run failed: {exc}")
+        log.info("Will retry on the next scheduled tick.")
+
+
 def main() -> None:
     if not DOCKERHUB_USERNAME or not DOCKERHUB_TOKEN:
         log.error("DOCKERHUB_USERNAME and DOCKERHUB_TOKEN must be set.")
         sys.exit(1)
 
     if not CRON_SCHEDULE:
+        # One-shot mode: let exceptions propagate so the exit code reflects failure.
         run_cleanup()
         return
 
@@ -262,11 +272,12 @@ def main() -> None:
     log.info(f"Cron mode — schedule: '{CRON_SCHEDULE}'")
     log.info("Running cleanup immediately, then waiting for next scheduled time...")
 
-    # Run once right away so there is no silent wait on first start
-    run_cleanup()
+    # Run once right away so there is no silent wait on first start.
+    # Use safe_run_cleanup so a transient error doesn't abort cron mode.
+    safe_run_cleanup()
 
     scheduler = BlockingScheduler()
-    scheduler.add_job(run_cleanup, trigger)
+    scheduler.add_job(safe_run_cleanup, trigger)
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
