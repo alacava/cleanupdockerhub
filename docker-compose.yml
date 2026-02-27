@@ -7,8 +7,8 @@ services:
     #   dockerfile: Dockerfile
     env_file:
       - .env
-    # When CRON_SCHEDULE is set in .env the container runs continuously.
-    # "unless-stopped" keeps it alive across Docker/host restarts.
-    # When CRON_SCHEDULE is empty the container exits after one run; Docker
-    # will not restart it because the exit code will be 0.
-    restart: unless-stopped
+    # One-shot mode  (CRON_SCHEDULE empty):  keep "no" so a failed run
+    #   stays stopped rather than restarting in a tight loop.
+    # Cron mode (CRON_SCHEDULE set):  change to "unless-stopped" so the
+    #   container survives Docker/host restarts.
+    restart: "no"

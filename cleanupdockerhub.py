@@ -59,14 +59,18 @@ log = logging.getLogger(__name__)
 # Docker Hub API helpers
 # ---------------------------------------------------------------------------
 
+_MAX_LOGIN_ATTEMPTS = 5
+_LOGIN_BACKOFF = [5, 15, 30, 60]  # seconds between attempts (last value reused)
+
+
 def get_token() -> str:
     """Authenticate with Docker Hub and return a JWT token.
 
-    Retries up to 3 times with exponential backoff on 5xx / network errors.
+    Retries up to _MAX_LOGIN_ATTEMPTS times with backoff on 5xx / network errors.
     4xx errors (bad credentials, etc.) are not retried.
     """
     last_exc: Exception = RuntimeError("No attempts made")
-    for attempt in range(1, 4):
+    for attempt in range(1, _MAX_LOGIN_ATTEMPTS + 1):
         try:
             resp = requests.post(
                 f"{DOCKERHUB_API}/users/login",
@@ -83,9 +87,18 @@ def get_token() -> str:
         except requests.exceptions.RequestException as exc:
             last_exc = exc
 
-        wait = 2 ** attempt  # 2 s, 4 s, 8 s
-        log.warning(f"Docker Hub login attempt {attempt}/3 failed: {last_exc}. Retrying in {wait}s...")
-        time.sleep(wait)
+        if attempt < _MAX_LOGIN_ATTEMPTS:
+            wait = _LOGIN_BACKOFF[min(attempt - 1, len(_LOGIN_BACKOFF) - 1)]
+            log.warning(
+                f"Docker Hub login attempt {attempt}/{_MAX_LOGIN_ATTEMPTS} failed: "
+                f"{last_exc}. Retrying in {wait}s..."
+            )
+            time.sleep(wait)
+        else:
+            log.error(
+                f"Docker Hub login attempt {attempt}/{_MAX_LOGIN_ATTEMPTS} failed: "
+                f"{last_exc}. Giving up."
+            )
 
     raise last_exc
 
