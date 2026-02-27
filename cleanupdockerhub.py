@@ -73,8 +73,9 @@ def get_token() -> str:
     for attempt in range(1, _MAX_LOGIN_ATTEMPTS + 1):
         try:
             resp = requests.post(
-                f"{DOCKERHUB_API}/users/login",
+                f"{DOCKERHUB_API}/users/login/",
                 json={"username": DOCKERHUB_USERNAME, "password": DOCKERHUB_TOKEN},
+                headers={"User-Agent": "docker/20.10.24"},
                 timeout=30,
             )
             resp.raise_for_status()
