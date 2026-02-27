@@ -1,0 +1,10 @@
+services:
+  cleanupdockerhub:
+    image: your-dockerhub-username/cleanupdockerhub:latest
+    # Uncomment the lines below to build locally instead of pulling from Docker Hub:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    env_file:
+      - .env
+    restart: "no"
