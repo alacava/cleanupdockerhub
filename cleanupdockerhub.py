@@ -25,8 +25,8 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 # Configuration from environment variables
 # ---------------------------------------------------------------------------
-DOCKERHUB_USERNAME: str = os.getenv("DOCKERHUB_USERNAME", "")
-DOCKERHUB_TOKEN: str = os.getenv("DOCKERHUB_TOKEN", "")
+DOCKERHUB_USERNAME: str = os.getenv("DOCKERHUB_USERNAME", "").strip()
+DOCKERHUB_TOKEN: str = os.getenv("DOCKERHUB_TOKEN", "").strip()
 DOCKERHUB_NAMESPACE: str = os.getenv("DOCKERHUB_NAMESPACE", DOCKERHUB_USERNAME)
 KEEP_LAST_N: int = int(os.getenv("KEEP_LAST_N", "5"))
 MIN_AGE_DAYS: int = int(os.getenv("MIN_AGE_DAYS", "30"))
@@ -238,6 +238,10 @@ def run_cleanup() -> None:
     log.info(divider)
     log.info("Docker Hub Image Cleanup")
     log.info(divider)
+    _tok = DOCKERHUB_TOKEN
+    _tok_preview = f"{_tok[:4]}...{_tok[-4:]}" if len(_tok) >= 8 else "(too short)"
+    log.info(f"Username       : {DOCKERHUB_USERNAME}")
+    log.info(f"Token          : {_tok_preview}  (len={len(_tok)})")
     log.info(f"Namespace      : {DOCKERHUB_NAMESPACE}")
     log.info(f"Keep last N    : {KEEP_LAST_N}")
     log.info(f"Min age (days) : {MIN_AGE_DAYS}")
