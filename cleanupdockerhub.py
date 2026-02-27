@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from typing import List, Tuple
 
 import requests
+from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -34,6 +36,10 @@ REPOS_TO_CLEAN: List[str] = [
 EXCLUDE_TAGS: List[str] = [
     t.strip() for t in os.getenv("EXCLUDE_TAGS", "latest").split(",") if t.strip()
 ]
+# Standard 5-field cron expression (min hour dom month dow).
+# Leave empty to run once and exit.
+# Example: "0 3 * * 0"  →  every Sunday at 03:00
+CRON_SCHEDULE: str = os.getenv("CRON_SCHEDULE", "").strip()
 
 DOCKERHUB_API = "https://hub.docker.com/v2"
 
@@ -190,14 +196,10 @@ def process_repo(token: str, repo: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Entry point
+# Core cleanup run (called once per execution, or by the scheduler)
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    if not DOCKERHUB_USERNAME or not DOCKERHUB_TOKEN:
-        log.error("DOCKERHUB_USERNAME and DOCKERHUB_TOKEN must be set.")
-        sys.exit(1)
-
+def run_cleanup() -> None:
     divider = "=" * 60
     log.info(divider)
     log.info("Docker Hub Image Cleanup")
@@ -235,6 +237,40 @@ def main() -> None:
 
     if DRY_RUN:
         log.info("Dry-run complete — set DRY_RUN=false to perform actual deletions.")
+
+
+# ---------------------------------------------------------------------------
+# Entry point — one-shot or scheduled
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    if not DOCKERHUB_USERNAME or not DOCKERHUB_TOKEN:
+        log.error("DOCKERHUB_USERNAME and DOCKERHUB_TOKEN must be set.")
+        sys.exit(1)
+
+    if not CRON_SCHEDULE:
+        run_cleanup()
+        return
+
+    # Validate the cron expression before starting the scheduler
+    try:
+        trigger = CronTrigger.from_crontab(CRON_SCHEDULE)
+    except ValueError as exc:
+        log.error(f"Invalid CRON_SCHEDULE '{CRON_SCHEDULE}': {exc}")
+        sys.exit(1)
+
+    log.info(f"Cron mode — schedule: '{CRON_SCHEDULE}'")
+    log.info("Running cleanup immediately, then waiting for next scheduled time...")
+
+    # Run once right away so there is no silent wait on first start
+    run_cleanup()
+
+    scheduler = BlockingScheduler()
+    scheduler.add_job(run_cleanup, trigger)
+    try:
+        scheduler.start()
+    except (KeyboardInterrupt, SystemExit):
+        log.info("Scheduler stopped.")
 
 
 if __name__ == "__main__":

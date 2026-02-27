@@ -79,6 +79,7 @@ All settings are provided via environment variables (or a `.env` file).
 | `MIN_AGE_DAYS` | `30` | Minimum age in days a tag must reach before it becomes eligible for deletion. |
 | `REPOS_TO_CLEAN` | *(all repos)* | Comma-separated list of repository names to process. Omit or leave empty to process **all** repositories in the namespace. |
 | `EXCLUDE_TAGS` | `latest` | Comma-separated list of tags that are **never** deleted regardless of age or rank. |
+| `CRON_SCHEDULE` | *(empty)* | Standard 5-field cron expression (e.g. `0 3 * * 0`). When set, the container runs continuously on that schedule. When empty, the container runs once and exits. |
 | `DRY_RUN` | `true` | When `true` the tool only logs what it *would* delete — nothing is removed. Set to `false` to perform real deletions. |
 
 ### Example `.env`
@@ -194,24 +195,37 @@ The workflow also **automatically updates the Docker Hub repository description*
 
 ## Scheduling
 
-### GitHub Actions (cron)
+### Built-in scheduler (recommended)
 
-Add a schedule trigger to the workflow to run it periodically:
+Set `CRON_SCHEDULE` in your `.env` to a standard 5-field cron expression. The container will run the cleanup immediately on start, then repeat on that schedule indefinitely.
 
-```yaml
-on:
-  schedule:
-    - cron: "0 3 * * 0"   # Every Sunday at 03:00 UTC
-  push:
-    branches: [main]
+```dotenv
+# Run every Sunday at 03:00
+CRON_SCHEDULE=0 3 * * 0
 ```
 
-Then pass your Docker Hub credentials to the container as environment variables in a separate job or a dedicated *run* workflow.
+```bash
+# The container stays alive and re-runs on the configured schedule
+docker compose up -d
+```
 
-### Cron on a server
+Field order: `minute  hour  day-of-month  month  day-of-week`
+
+| Example | Meaning |
+|---|---|
+| `0 3 * * *` | Every day at 03:00 |
+| `0 3 * * 0` | Every Sunday at 03:00 |
+| `0 */6 * * *` | Every 6 hours |
+| `30 2 1 * *` | 1st of every month at 02:30 |
+
+Leave `CRON_SCHEDULE` empty (or unset) for a one-shot run — the container exits after completing.
+
+### External cron on a server
+
+If you prefer the host OS to control scheduling, leave `CRON_SCHEDULE` unset and use a host crontab:
 
 ```cron
-0 3 * * 0   docker run --rm --env-file /opt/cleanupdockerhub/.env your-dockerhub-username/cleanupdockerhub:latest
+0 3 * * 0   docker run --rm --env-file /opt/cleanupdockerhub/.env antlac1/cleanupdockerhub:latest
 ```
 
 ### Kubernetes CronJob
@@ -230,7 +244,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: cleanupdockerhub
-              image: your-dockerhub-username/cleanupdockerhub:latest
+              image: antlac1/cleanupdockerhub:latest
               envFrom:
                 - secretRef:
                     name: dockerhub-credentials
@@ -241,6 +255,8 @@ spec:
                   value: "30"
                 - name: DRY_RUN
                   value: "false"
+                # CRON_SCHEDULE is intentionally omitted here so the pod
+                # runs once per job invocation and exits cleanly.
 ```
 
 ---

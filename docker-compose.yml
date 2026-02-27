@@ -1,10 +1,14 @@
 services:
   cleanupdockerhub:
-    image: your-dockerhub-username/cleanupdockerhub:latest
+    image: antlac1/cleanupdockerhub:latest
     # Uncomment the lines below to build locally instead of pulling from Docker Hub:
     # build:
     #   context: .
     #   dockerfile: Dockerfile
     env_file:
       - .env
-    restart: "no"
+    # When CRON_SCHEDULE is set in .env the container runs continuously.
+    # "unless-stopped" keeps it alive across Docker/host restarts.
+    # When CRON_SCHEDULE is empty the container exits after one run; Docker
+    # will not restart it because the exit code will be 0.
+    restart: unless-stopped
