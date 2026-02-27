@@ -80,6 +80,14 @@ def get_token() -> str:
             resp.raise_for_status()
             return resp.json()["token"]
         except requests.exceptions.HTTPError as exc:
+            # Log the response body — Docker Hub sometimes puts useful info there
+            body = ""
+            if exc.response is not None:
+                try:
+                    body = f" | body: {exc.response.text[:300]}"
+                except Exception:
+                    pass
+            log.warning(f"HTTP {exc.response.status_code if exc.response is not None else '?'}{body}")
             # 4xx = credentials / client error — no point retrying
             if exc.response is not None and exc.response.status_code < 500:
                 raise
