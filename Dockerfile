@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 LABEL org.opencontainers.image.title="cleanupdockerhub" \
       org.opencontainers.image.description="Removes old Docker Hub image tags based on configurable retention policies" \
