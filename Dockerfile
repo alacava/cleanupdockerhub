@@ -22,4 +22,4 @@ COPY cleanupdockerhub.py .
 RUN useradd --no-create-home --shell /bin/false appuser
 USER appuser
 
-CMD ["infisical", "run", "--projectId=TestProject", "--env=dev", "--", "python", "cleanupdockerhub.py"]
+CMD ["infisical", "run", "--projectId=f5859fe8-6075-4776-b33c-b71db4625270", "--env=dev", "--", "python", "cleanupdockerhub.py"]
